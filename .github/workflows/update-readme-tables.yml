@@ -1,0 +1,210 @@
+name: Update README Tables
+
+on:
+  workflow_call:
+    secrets:
+      PAT_TOKEN:
+        required: true
+        description: "PAT with org admin read access for fetching runner/group/image data"
+
+permissions:
+  contents: write
+
+jobs:
+  update-readme-tables:
+    runs-on: ubuntu-slim
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate token
+        env:
+          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
+        run: |
+          if [[ -z "$GH_TOKEN" ]]; then
+            echo "::error::PAT_TOKEN secret is not set"
+            exit 1
+          fi
+          gh auth status
+
+      - name: Fetch data and update tables
+        env:
+          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          OWNER="${{ github.repository_owner }}"
+          REPO="${{ github.event.repository.name }}"
+          PREFIX="gitpaulo"
+          BASE_URL="https://github.com/organizations/${OWNER}/settings/actions"
+          RUNNERS_FILE=$(mktemp)
+          GROUPS_FILE=$(mktemp)
+          IMAGES_FILE=$(mktemp)
+          LHR_CACHE=$(mktemp)
+          API_OK=false
+
+          # Helper: manual pagination (gh --paginate is unreliable for nested endpoints)
+          paginate() {
+            local endpoint="$1" arraykey="$2" jqfilter="$3" output="$4"
+            local page=1
+            while true; do
+              local raw
+              raw=$(gh api "${endpoint}?per_page=100&page=${page}" 2>/dev/null) || return 1
+              local result
+              result=$(echo "$raw" | jq -r ".${arraykey}[] | ${jqfilter}" 2>/dev/null)
+              [[ -n "$result" ]] && echo "$result" >> "$output"
+              local count
+              count=$(echo "$raw" | jq ".${arraykey} | length" 2>/dev/null)
+              page=$((page + 1))
+              [[ "$count" -lt 100 ]] && break
+            done
+            return 0
+          }
+
+          # --- Org self-hosted runners ---
+          if paginate "/orgs/${OWNER}/actions/runners" "runners" \
+            "select(.name | contains(\"${PREFIX}\")) |
+              \"| \(.name) | self-hosted | \(.os) | \(.status) | \([.labels[].name] | join(\", \")) | org |\"" \
+            "$RUNNERS_FILE"; then
+            API_OK=true
+          fi
+
+          # --- Repo self-hosted runners ---
+          if gh api --paginate "/repos/${OWNER}/${REPO}/actions/runners" \
+            --jq ".runners[] | select(.name | contains(\"${PREFIX}\")) |
+              \"| \(.name) | self-hosted | \(.os) | \(.status) | \([.labels[].name] | join(\", \")) | repo |\"" \
+            >> "$RUNNERS_FILE" 2>/dev/null; then
+            API_OK=true
+          fi
+
+          # --- Org larger hosted runners (LHR) — fetch raw JSON cache ---
+          LHR_OK=false
+          page=1
+          while true; do
+            CHUNK=$(gh api "/orgs/${OWNER}/actions/hosted-runners?per_page=100&page=${page}" 2>/dev/null) || break
+            echo "$CHUNK" | jq -c '.runners[]' >> "$LHR_CACHE" 2>/dev/null
+            COUNT=$(echo "$CHUNK" | jq '.runners | length' 2>/dev/null)
+            page=$((page + 1))
+            LHR_OK=true
+            [[ "$COUNT" -lt 100 ]] && break
+          done
+
+          if [[ "$LHR_OK" == "true" ]]; then
+            API_OK=true
+
+            # Filter LHR runners for the table
+            jq -r --arg prefix "$PREFIX" --arg base "$BASE_URL" '
+              select(.name | contains($prefix)) |
+              "| [\(.name)](\($base)/github-hosted-runners/\(.id)) | larger-hosted | \(.platform) | \(.status) | \(.machine_size_details.id // "N/A") | org |"
+            ' "$LHR_CACHE" >> "$RUNNERS_FILE" 2>/dev/null || true
+
+            # Filter custom images
+            jq -r --arg prefix "$PREFIX" --arg base "$BASE_URL" '
+              select(.name | contains($prefix)) | select(.image_details.source == "custom") |
+              "| [\(.name)](\($base)/github-hosted-runners/\(.id)) | [\(.image_details.display_name)](\($base)/custom-images/\(.image_details.id)/versions) | \(.image_details.version) | \(.image_details.size_gb) | \(.platform) | \(.status) |"
+            ' "$LHR_CACHE" >> "$IMAGES_FILE" 2>/dev/null || true
+          fi
+
+          # --- Org runner groups ---
+          if paginate "/orgs/${OWNER}/actions/runner-groups" "runner_groups" \
+            "select(.name | contains(\"${PREFIX}\")) |
+              \"| [\(.name)](${BASE_URL}/runner-groups/\(.id)) | \(.visibility) | \(.default) |\"" \
+            "$GROUPS_FILE"; then
+            API_OK=true
+          fi
+
+          rm -f "$LHR_CACHE"
+
+          # Abort if every API call failed
+          if [[ "$API_OK" != "true" ]]; then
+            echo "::error::All API calls failed. Skipping update to avoid overwriting existing data."
+            rm -f "$RUNNERS_FILE" "$GROUPS_FILE" "$IMAGES_FILE"
+            exit 1
+          fi
+
+          # --- Fallback for empty tables ---
+          RUNNERS_EMPTY=false
+          GROUPS_EMPTY=false
+          IMAGES_EMPTY=false
+          if [[ ! -s "$RUNNERS_FILE" ]]; then
+            echo "No runners found matching \`*${PREFIX}*\`." > "$RUNNERS_FILE"
+            RUNNERS_EMPTY=true
+          fi
+          if [[ ! -s "$GROUPS_FILE" ]]; then
+            echo "No runner groups found matching \`*${PREFIX}*\`." > "$GROUPS_FILE"
+            GROUPS_EMPTY=true
+          fi
+          if [[ ! -s "$IMAGES_FILE" ]]; then
+            echo "No custom images found matching \`*${PREFIX}*\`." > "$IMAGES_FILE"
+            IMAGES_EMPTY=true
+          fi
+
+          # --- Replace runners table ---
+          R_HEADER="| Name | Type | OS | Status | Labels | Scope |"
+          R_SEP="| --- | --- | --- | --- | --- | --- |"
+
+          awk -v header="$R_HEADER" -v sep="$R_SEP" -v rowsfile="$RUNNERS_FILE" -v empty="$RUNNERS_EMPTY" '
+            /<!-- RUNNERS_TABLE_START -->/ {
+              print "<!-- RUNNERS_TABLE_START -->"
+              if (empty != "true") { print header; print sep }
+              while ((getline line < rowsfile) > 0) print line
+              close(rowsfile)
+              skip=1; next
+            }
+            /<!-- RUNNERS_TABLE_END -->/ { print; skip=0; next }
+            !skip { print }
+          ' README.md > README.md.tmp
+
+          # --- Replace groups table ---
+          G_HEADER="| Name | Visibility | Default |"
+          G_SEP="| --- | --- | --- |"
+
+          awk -v header="$G_HEADER" -v sep="$G_SEP" -v rowsfile="$GROUPS_FILE" -v empty="$GROUPS_EMPTY" '
+            /<!-- GROUPS_TABLE_START -->/ {
+              print "<!-- GROUPS_TABLE_START -->"
+              if (empty != "true") { print header; print sep }
+              while ((getline line < rowsfile) > 0) print line
+              close(rowsfile)
+              skip=1; next
+            }
+            /<!-- GROUPS_TABLE_END -->/ { print; skip=0; next }
+            !skip { print }
+          ' README.md.tmp > README.md.tmp2
+
+          # --- Replace images table ---
+          I_HEADER="| Runner | Image | Version | Size (GB) | Platform | Status |"
+          I_SEP="| --- | --- | --- | --- | --- | --- |"
+
+          awk -v header="$I_HEADER" -v sep="$I_SEP" -v rowsfile="$IMAGES_FILE" -v empty="$IMAGES_EMPTY" '
+            /<!-- IMAGES_TABLE_START -->/ {
+              print "<!-- IMAGES_TABLE_START -->"
+              if (empty != "true") { print header; print sep }
+              while ((getline line < rowsfile) > 0) print line
+              close(rowsfile)
+              skip=1; next
+            }
+            /<!-- IMAGES_TABLE_END -->/ { print; skip=0; next }
+            !skip { print }
+          ' README.md.tmp2 > README.md.out
+
+          # Validate before overwriting
+          if [[ ! -s README.md.out ]]; then
+            echo "::error::Generated README is empty. Aborting."
+            rm -f README.md.tmp README.md.tmp2 README.md.out "$RUNNERS_FILE" "$GROUPS_FILE" "$IMAGES_FILE"
+            exit 1
+          fi
+
+          mv README.md.out README.md
+          rm -f README.md.tmp README.md.tmp2 "$RUNNERS_FILE" "$GROUPS_FILE" "$IMAGES_FILE"
+
+      - name: Commit and push changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add README.md
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "chore: update README tables [skip ci]"
+            git push
+          fi
