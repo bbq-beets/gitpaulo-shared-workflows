@@ -1,0 +1,29 @@
+name: Use custom runner image
+
+on:
+  workflow_call:
+    inputs:
+      runner_name:
+        description: "Name/label of the larger runner configured with the custom image"
+        required: true
+        type: string
+
+run-name: Use custom image runner "${{ inputs.runner_name }}"
+
+jobs:
+  verify-custom-image:
+    runs-on: ${{ inputs.runner_name }}
+
+    steps:
+      - name: Show runner environment
+        run: |
+          uname -a
+          whoami
+          pwd
+          echo "Runner name: $RUNNER_NAME"
+          echo "Runner OS: $RUNNER_OS"
+          echo "Runner arch: $RUNNER_ARCH"
+
+      - name: Show selected workflow input
+        run: |
+          echo "Requested runner: ${{ inputs.runner_name }}"
