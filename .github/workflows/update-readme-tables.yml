@@ -30,11 +30,11 @@ jobs:
       - name: Fetch data and update tables
         env:
           GH_TOKEN: ${{ secrets.PAT_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
         run: |
           set -euo pipefail
 
-          OWNER="${{ github.repository_owner }}"
-          REPO="${{ github.event.repository.name }}"
           PREFIX="gitpaulo"
           BASE_URL="https://github.com/organizations/${OWNER}/settings/actions"
           RUNNERS_FILE=$(mktemp)
@@ -138,6 +138,13 @@ jobs:
             echo "No custom images found matching \`*${PREFIX}*\`." > "$IMAGES_FILE"
             IMAGES_EMPTY=true
           fi
+
+          # --- Sort table rows by name column (field 2 when split by |) ---
+          for f in "$RUNNERS_FILE" "$GROUPS_FILE" "$IMAGES_FILE"; do
+            if [[ -s "$f" ]] && grep -q '^|' "$f"; then
+              sort -t'|' -k2,2f "$f" -o "$f"
+            fi
+          done
 
           # --- Replace runners table ---
           R_HEADER="| Name | Type | OS | Status | Labels | Scope |"
