@@ -100,11 +100,22 @@ jobs:
               "| [\(.name)](\($base)/github-hosted-runners/\(.id)) | larger-hosted | \(.platform) | \(.status) | \(.machine_size_details.id // "N/A") | org | \(if .image_gen then "Yes" else "No" end) |"
             ' "$LHR_CACHE" >> "$RUNNERS_FILE" 2>/dev/null || true
 
-            # Filter custom images
+            # Filter custom images from runners (runners using custom images)
             jq -r --arg prefix "$PREFIX" --arg base "$BASE_URL" '
               select(.name | contains($prefix)) | select(.image_details.source == "custom") |
-              "| [\(.name)](\($base)/github-hosted-runners/\(.id)) | [\(.image_details.display_name)](\($base)/custom-images/\(.image_details.id)/versions) | \(.image_details.version) | \(.image_details.size_gb) | \(.platform) | \(.status) |"
+              "| [\(.image_details.display_name)](\($base)/custom-images/\(.image_details.id)/versions) | [\(.name)](\($base)/github-hosted-runners/\(.id)) | \(.image_details.version) | \(.image_details.size_gb) | \(.platform) | \(.status) |"
             ' "$LHR_CACHE" >> "$IMAGES_FILE" 2>/dev/null || true
+          fi
+
+          # --- Custom images (standalone definitions) ---
+          CUSTOM_IMAGES=$(gh api "/orgs/${OWNER}/actions/hosted-runners/images/custom" 2>/dev/null) || true
+          if [[ -n "$CUSTOM_IMAGES" ]]; then
+            API_OK=true
+            echo "$CUSTOM_IMAGES" | jq -r --arg prefix "$PREFIX" --arg base "$BASE_URL" '
+              (if type == "array" then . elif has("images") then .images else [.] end)[] |
+              select(.name | contains($prefix)) |
+              "| [\(.name)](\($base)/custom-images/\(.id)/versions) | - | \(.latest_version // "N/A") | \(.total_versions_size // 0) | \(.platform // "N/A") | \(.state // "N/A") |"
+            ' >> "$IMAGES_FILE" 2>/dev/null || true
           fi
 
           # --- Org runner groups ---
@@ -198,7 +209,7 @@ jobs:
           ' README.md.tmp > README.md.tmp2
 
           # --- Replace images table ---
-          I_HEADER="| Runner | Image | Version | Size (GB) | Platform | Status |"
+          I_HEADER="| Name | Runner | Version | Size (GB) | Platform | Status |"
           I_SEP="| --- | --- | --- | --- | --- | --- |"
 
           awk -v header="$I_HEADER" -v sep="$I_SEP" -v rowsfile="$IMAGES_FILE" -v empty="$IMAGES_EMPTY" -v repourl="$REPO_URL" '
