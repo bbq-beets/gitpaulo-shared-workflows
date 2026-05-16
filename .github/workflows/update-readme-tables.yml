@@ -41,6 +41,7 @@ jobs:
           RUNNERS_FILE=$(mktemp)
           GROUPS_FILE=$(mktemp)
           IMAGES_FILE=$(mktemp)
+          RUNNER_IMAGES_FILE=$(mktemp)
           NETWORKS_FILE=$(mktemp)
           LHR_CACHE=$(mktemp)
           API_OK=false
@@ -100,11 +101,11 @@ jobs:
               "| [\(.name)](\($base)/github-hosted-runners/\(.id)) | larger-hosted | \(.platform) | \(.status) | \(.machine_size_details.id // "N/A") | org | \(if .image_gen then "Yes" else "No" end) |"
             ' "$LHR_CACHE" >> "$RUNNERS_FILE" 2>/dev/null || true
 
-            # Filter custom images from runners (runners using custom images)
+            # Filter runners using custom images (runner <-> image mapping)
             jq -r --arg prefix "$PREFIX" --arg base "$BASE_URL" '
               select(.name | contains($prefix)) | select(.image_details.source == "custom") |
-              "| [\(.image_details.display_name)](\($base)/custom-images/\(.image_details.id)/versions) | [\(.name)](\($base)/github-hosted-runners/\(.id)) | \(.image_details.version) | \(.image_details.size_gb) | \(.platform) | \(.status) |"
-            ' "$LHR_CACHE" >> "$IMAGES_FILE" 2>/dev/null || true
+              "| [\(.name)](\($base)/github-hosted-runners/\(.id)) | \(.image_details.display_name) | \(.image_details.version) | \(.status) |"
+            ' "$LHR_CACHE" >> "$RUNNER_IMAGES_FILE" 2>/dev/null || true
           fi
 
           # --- Custom images (standalone definitions) ---
@@ -139,7 +140,7 @@ jobs:
           # Abort if every API call failed
           if [[ "$API_OK" != "true" ]]; then
             echo "::error::All API calls failed. Skipping update to avoid overwriting existing data."
-            rm -f "$RUNNERS_FILE" "$GROUPS_FILE" "$IMAGES_FILE" "$NETWORKS_FILE"
+            rm -f "$RUNNERS_FILE" "$GROUPS_FILE" "$IMAGES_FILE" "$RUNNER_IMAGES_FILE" "$NETWORKS_FILE"
             exit 1
           fi
 
@@ -209,15 +210,32 @@ jobs:
           ' README.md.tmp > README.md.tmp2
 
           # --- Replace images table ---
-          I_HEADER="| Name | Runner | Version | Size (GB) | Platform | Status |"
-          I_SEP="| --- | --- | --- | --- | --- | --- |"
+          I_HEADER="| Name | Version | Size (GB) | Platform | Status |"
+          I_SEP="| --- | --- | --- | --- | --- |"
+          RI_HEADER="| Runner | Image | Version | Status |"
+          RI_SEP="| --- | --- | --- | --- |"
+          RUNNER_IMAGES_EMPTY=false
+          if [[ ! -s "$RUNNER_IMAGES_FILE" ]]; then
+            RUNNER_IMAGES_EMPTY=true
+          else
+            sort -t'|' -k2,2f "$RUNNER_IMAGES_FILE" -o "$RUNNER_IMAGES_FILE"
+          fi
 
-          awk -v header="$I_HEADER" -v sep="$I_SEP" -v rowsfile="$IMAGES_FILE" -v empty="$IMAGES_EMPTY" -v repourl="$REPO_URL" '
+          awk -v header="$I_HEADER" -v sep="$I_SEP" -v rowsfile="$IMAGES_FILE" -v empty="$IMAGES_EMPTY" \
+              -v riheader="$RI_HEADER" -v risep="$RI_SEP" -v rifile="$RUNNER_IMAGES_FILE" -v riempty="$RUNNER_IMAGES_EMPTY" \
+              -v repourl="$REPO_URL" '
             /<!-- IMAGES_TABLE_START -->/ {
               print "<!-- IMAGES_TABLE_START -->"
               if (empty != "true") { print header; print sep }
               while ((getline line < rowsfile) > 0) print line
               close(rowsfile)
+              if (riempty != "true") {
+                print ""
+                print riheader
+                print risep
+                while ((getline line < rifile) > 0) print line
+                close(rifile)
+              }
               print ""
               print "> [Test Custom Image](" repourl "/actions/workflows/test-custom-image.yml) · [Test Generate Custom Image](" repourl "/actions/workflows/test-generate-custom-image.yml)"
               skip=1; next
@@ -247,7 +265,7 @@ jobs:
           # Validate before overwriting
           if [[ ! -s README.md.out ]]; then
             echo "::error::Generated README is empty. Aborting."
-            rm -f README.md.tmp README.md.tmp2 README.md.tmp3 README.md.out "$RUNNERS_FILE" "$GROUPS_FILE" "$IMAGES_FILE" "$NETWORKS_FILE"
+            rm -f README.md.tmp README.md.tmp2 README.md.tmp3 README.md.out "$RUNNERS_FILE" "$GROUPS_FILE" "$IMAGES_FILE" "$RUNNER_IMAGES_FILE" "$NETWORKS_FILE"
             exit 1
           fi
 
@@ -270,7 +288,7 @@ jobs:
           fi
 
           mv README.md.out README.md
-          rm -f README.md.tmp README.md.tmp2 README.md.tmp3 "$RUNNERS_FILE" "$GROUPS_FILE" "$IMAGES_FILE" "$NETWORKS_FILE"
+          rm -f README.md.tmp README.md.tmp2 README.md.tmp3 "$RUNNERS_FILE" "$GROUPS_FILE" "$IMAGES_FILE" "$RUNNER_IMAGES_FILE" "$NETWORKS_FILE"
 
       - name: Commit and push changes
         run: |
