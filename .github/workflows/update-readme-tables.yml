@@ -240,6 +240,24 @@ jobs:
             exit 1
           fi
 
+          # --- Replace footer ---
+          FOOTER="<p align=\"center\"><a href=\"${REPO_URL}/actions/workflows/update-readme-tables.yml\">Update this README</a></p>"
+
+          if grep -q '<!-- FOOTER_START -->' README.md.out; then
+            awk -v footer="$FOOTER" '
+              /<!-- FOOTER_START -->/ {
+                print "<!-- FOOTER_START -->"
+                print footer
+                skip=1; next
+              }
+              /<!-- FOOTER_END -->/ { print; skip=0; next }
+              !skip { print }
+            ' README.md.out > README.md.out2
+            mv README.md.out2 README.md.out
+          else
+            printf "\n<!-- FOOTER_START -->\n%s\n<!-- FOOTER_END -->\n" "$FOOTER" >> README.md.out
+          fi
+
           mv README.md.out README.md
           rm -f README.md.tmp README.md.tmp2 README.md.tmp3 "$RUNNERS_FILE" "$GROUPS_FILE" "$IMAGES_FILE" "$NETWORKS_FILE"
 
