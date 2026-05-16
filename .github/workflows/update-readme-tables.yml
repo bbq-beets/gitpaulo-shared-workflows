@@ -241,7 +241,7 @@ jobs:
           fi
 
           # --- Replace footer ---
-          FOOTER="<p align=\"center\"><a href=\"${REPO_URL}/actions/workflows/update-readme-tables.yml\">Update this README</a></p>"
+          FOOTER="<p align=\"center\"><a href=\"${REPO_URL}/actions/workflows/update-readme-tables.yml\">Update this README</a><br><a href=\"${REPO_URL}/actions/workflows/update-readme-tables.yml\"><img src=\"${REPO_URL}/actions/workflows/update-readme-tables.yml/badge.svg\" alt=\"Update README Tables\"></a></p>"
 
           if grep -q '<!-- FOOTER_START -->' README.md.out; then
             awk -v footer="$FOOTER" '
