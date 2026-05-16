@@ -1,4 +1,4 @@
-name: Test Runner Info
+name: (Shared) Test Runner Info
 
 on:
   workflow_call:
