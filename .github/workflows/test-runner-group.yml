@@ -1,0 +1,93 @@
+name: Test Runner Group
+
+on:
+  workflow_call:
+    inputs:
+      group_id:
+        description: "Runner group ID"
+        required: true
+        type: string
+    secrets:
+      PAT_TOKEN:
+        required: true
+        description: "PAT with org runner group read access"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Inspect runner group
+        env:
+          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+          GROUP_ID: ${{ inputs.group_id }}
+        run: |
+          set -euo pipefail
+
+          echo "::group::Group Details"
+          GROUP=$(gh api "/orgs/${OWNER}/actions/runner-groups/${GROUP_ID}")
+          echo "$GROUP" | jq .
+          echo "::endgroup::"
+
+          GROUP_NAME=$(echo "$GROUP" | jq -r '.name')
+          VISIBILITY=$(echo "$GROUP" | jq -r '.visibility')
+          IS_DEFAULT=$(echo "$GROUP" | jq -r '.default')
+          INHERITED=$(echo "$GROUP" | jq -r '.inherited')
+          ALLOWS_PUBLIC=$(echo "$GROUP" | jq -r '.allows_public_repositories')
+          RESTRICTED=$(echo "$GROUP" | jq -r '.restricted_to_workflows')
+          NETWORK_CONFIG=$(echo "$GROUP" | jq -r '.network_configuration_id // "none"')
+
+          echo ""
+          echo "## Summary"
+          echo "Name:                  $GROUP_NAME"
+          echo "Visibility:            $VISIBILITY"
+          echo "Default:               $IS_DEFAULT"
+          echo "Inherited:             $INHERITED"
+          echo "Allows public repos:   $ALLOWS_PUBLIC"
+          echo "Restricted to WFs:     $RESTRICTED"
+          echo "Network config ID:     $NETWORK_CONFIG"
+
+          if [[ "$RESTRICTED" == "true" ]]; then
+            echo ""
+            echo "::group::Allowed Workflows"
+            echo "$GROUP" | jq -r '.selected_workflows[]'
+            echo "::endgroup::"
+          fi
+
+          echo ""
+          echo "::group::Hosted Runners in Group"
+          HOSTED=$(gh api "/orgs/${OWNER}/actions/runner-groups/${GROUP_ID}/hosted-runners" 2>/dev/null) || true
+          if [[ -n "$HOSTED" ]] && echo "$HOSTED" | jq -e '.runners' >/dev/null 2>&1; then
+            COUNT=$(echo "$HOSTED" | jq '.total_count')
+            echo "Total: $COUNT"
+            echo "$HOSTED" | jq -r '.runners[] | "  \(.name) | \(.platform) | \(.status) | \(.machine_size_details.id // "N/A")"'
+          else
+            echo "No hosted runners or API not available"
+          fi
+          echo "::endgroup::"
+
+          echo ""
+          echo "::group::Self-hosted Runners in Group"
+          SELFHOSTED=$(gh api "/orgs/${OWNER}/actions/runner-groups/${GROUP_ID}/runners" 2>/dev/null) || true
+          if [[ -n "$SELFHOSTED" ]] && echo "$SELFHOSTED" | jq -e '.runners' >/dev/null 2>&1; then
+            COUNT=$(echo "$SELFHOSTED" | jq '.total_count')
+            echo "Total: $COUNT"
+            echo "$SELFHOSTED" | jq -r '.runners[] | "  \(.name) | \(.os) | \(.status) | busy=\(.busy)"'
+          else
+            echo "No self-hosted runners or API not available"
+          fi
+          echo "::endgroup::"
+
+          if [[ "$VISIBILITY" == "selected" ]]; then
+            echo ""
+            echo "::group::Repository Access"
+            REPOS=$(gh api "/orgs/${OWNER}/actions/runner-groups/${GROUP_ID}/repositories" 2>/dev/null) || true
+            if [[ -n "$REPOS" ]] && echo "$REPOS" | jq -e '.repositories' >/dev/null 2>&1; then
+              COUNT=$(echo "$REPOS" | jq '.total_count')
+              echo "Total: $COUNT"
+              echo "$REPOS" | jq -r '.repositories[] | "  \(.full_name) (\(.visibility))"'
+            else
+              echo "Could not fetch repository access"
+            fi
+            echo "::endgroup::"
+          fi
