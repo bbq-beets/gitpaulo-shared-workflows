@@ -1,4 +1,4 @@
-name: Test Runner Group
+name: (Shared) Test Runner Group
 
 on:
   workflow_call:
