@@ -1,0 +1,61 @@
+name: Test Network Configuration
+
+on:
+  workflow_call:
+    inputs:
+      network_configuration_id:
+        description: "Network configuration ID"
+        required: true
+        type: string
+    secrets:
+      PAT_TOKEN:
+        required: true
+        description: "PAT with org network configurations read access"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Inspect network configuration
+        env:
+          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+          NC_ID: ${{ inputs.network_configuration_id }}
+        run: |
+          set -euo pipefail
+
+          echo "::group::Network Configuration"
+          NC=$(gh api "/orgs/${OWNER}/settings/network-configurations/${NC_ID}")
+          echo "$NC" | jq .
+          echo "::endgroup::"
+
+          NC_NAME=$(echo "$NC" | jq -r '.name')
+          COMPUTE=$(echo "$NC" | jq -r '.compute_service')
+          CREATED=$(echo "$NC" | jq -r '.created_on')
+          SETTINGS_IDS=$(echo "$NC" | jq -r '.network_settings_ids[]')
+
+          echo ""
+          echo "## Summary"
+          echo "Name:            $NC_NAME"
+          echo "Compute service: $COMPUTE"
+          echo "Created:         $CREATED"
+          echo "Settings count:  $(echo "$NC" | jq '.network_settings_ids | length')"
+
+          echo ""
+          echo "::group::Network Settings Details"
+          for sid in $SETTINGS_IDS; do
+            echo "--- Settings: $sid ---"
+            NS=$(gh api "/orgs/${OWNER}/settings/network-settings/${sid}" 2>/dev/null) || true
+            if [[ -n "$NS" ]] && echo "$NS" | jq -e '.id' >/dev/null 2>&1; then
+              NS_NAME=$(echo "$NS" | jq -r '.name // "N/A"')
+              SUBNET=$(echo "$NS" | jq -r '.subnet_id // "N/A"')
+              REGION=$(echo "$NS" | jq -r '.region // "N/A"')
+              echo "  Name:      $NS_NAME"
+              echo "  Subnet:    $SUBNET"
+              echo "  Region:    $REGION"
+            else
+              echo "  Could not fetch settings details"
+            fi
+            echo ""
+          done
+          echo "::endgroup::"
