@@ -1,0 +1,28 @@
+name: (Shared) Test Generate Custom Image
+
+on:
+  workflow_call:
+    inputs:
+      runner_name:
+        description: "Image-generation larger runner name"
+        required: true
+        type: string
+      snapshot_name:
+        description: "Custom image name to create/update"
+        required: true
+        type: string
+
+jobs:
+  generate:
+    runs-on: ${{ inputs.runner_name }}
+    snapshot: ${{ inputs.snapshot_name }}
+
+    steps:
+      - name: Show runner environment
+        run: |
+          uname -a
+          whoami
+          pwd
+          echo "Runner name: $RUNNER_NAME"
+          echo "Runner OS: $RUNNER_OS"
+          echo "Runner arch: $RUNNER_ARCH"
