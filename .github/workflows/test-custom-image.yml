@@ -1,4 +1,4 @@
-name: Use custom runner image
+name: (Shared) Use custom runner image
 
 on:
   workflow_call:
