@@ -97,7 +97,7 @@ jobs:
             # Filter LHR runners for the table
             jq -r --arg prefix "$PREFIX" --arg base "$BASE_URL" '
               select(.name | contains($prefix)) |
-              "| [\(.name)](\($base)/github-hosted-runners/\(.id)) | larger-hosted | \(.platform) | \(.status) | \(.machine_size_details.id // "N/A") | org |"
+              "| [\(.name)](\($base)/github-hosted-runners/\(.id)) | larger-hosted | \(.platform) | \(.status) | \(.machine_size_details.id // "N/A") | org | \(if .image_gen then "Yes" else "No" end) |"
             ' "$LHR_CACHE" >> "$RUNNERS_FILE" 2>/dev/null || true
 
             # Filter custom images
@@ -162,8 +162,8 @@ jobs:
           done
 
           # --- Replace runners table ---
-          R_HEADER="| Name | Type | OS | Status | Labels | Scope |"
-          R_SEP="| --- | --- | --- | --- | --- | --- |"
+          R_HEADER="| Name | Type | OS | Status | Labels | Scope | Img Gen |"
+          R_SEP="| --- | --- | --- | --- | --- | --- | --- |"
 
           awk -v header="$R_HEADER" -v sep="$R_SEP" -v rowsfile="$RUNNERS_FILE" -v empty="$RUNNERS_EMPTY" -v repourl="$REPO_URL" '
             /<!-- RUNNERS_TABLE_START -->/ {
