@@ -1,4 +1,4 @@
-name: Test Network Configuration
+name: (Shared) Test Network Configuration
 
 on:
   workflow_call:
