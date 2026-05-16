@@ -1,4 +1,4 @@
-name: Update README Tables
+name: (Shared) Update README Tables
 
 on:
   workflow_call:
@@ -172,7 +172,7 @@ jobs:
               while ((getline line < rowsfile) > 0) print line
               close(rowsfile)
               print ""
-              print "> [Test Runner Info →](" repourl "/actions/workflows/test-runner-info.yml) · [Test Custom Image →](" repourl "/actions/workflows/test-custom-image.yml)"
+              print "> [Test Runner Info](" repourl "/actions/workflows/test-runner-info.yml)"
               skip=1; next
             }
             /<!-- RUNNERS_TABLE_END -->/ { print; skip=0; next }
@@ -190,7 +190,7 @@ jobs:
               while ((getline line < rowsfile) > 0) print line
               close(rowsfile)
               print ""
-              print "> [Test Runner Group →](" repourl "/actions/workflows/test-runner-group.yml)"
+              print "> [Test Runner Group](" repourl "/actions/workflows/test-runner-group.yml)"
               skip=1; next
             }
             /<!-- GROUPS_TABLE_END -->/ { print; skip=0; next }
@@ -208,7 +208,7 @@ jobs:
               while ((getline line < rowsfile) > 0) print line
               close(rowsfile)
               print ""
-              print "> [Test Custom Image →](" repourl "/actions/workflows/test-custom-image.yml)"
+              print "> [Test Custom Image](" repourl "/actions/workflows/test-custom-image.yml)"
               skip=1; next
             }
             /<!-- IMAGES_TABLE_END -->/ { print; skip=0; next }
@@ -226,7 +226,7 @@ jobs:
               while ((getline line < rowsfile) > 0) print line
               close(rowsfile)
               print ""
-              print "> [Test Network Configuration →](" repourl "/actions/workflows/test-network-configuration.yml)"
+              print "> [Test Network Configuration](" repourl "/actions/workflows/test-network-configuration.yml)"
               skip=1; next
             }
             /<!-- NETWORKS_TABLE_END -->/ { print; skip=0; next }
