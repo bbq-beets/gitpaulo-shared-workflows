@@ -1,0 +1,137 @@
+name: (Shared) Test Workflow Annotations
+
+on:
+  workflow_call:
+
+jobs:
+  annotations:
+    name: Test workflow command annotations
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Ensure README.md has at least 5 lines
+        shell: bash
+        run: |
+          if [[ ! -f README.md ]]; then
+            {
+              echo "# Annotation command test"
+              echo ""
+              echo "This README.md was created by the workflow."
+              echo "It exists so file-linked annotations have a target file."
+              echo "Line five."
+            } > README.md
+          fi
+
+          line_count="$(wc -l < README.md)"
+
+          if (( line_count < 5 )); then
+            {
+              echo ""
+              echo "Extra line added by annotation test workflow."
+              echo "Extra line added by annotation test workflow."
+              echo "Extra line added by annotation test workflow."
+              echo "Extra line added by annotation test workflow."
+              echo "Extra line added by annotation test workflow."
+            } >> README.md
+          fi
+
+          echo "README.md line count: $(wc -l < README.md)"
+
+      - name: Plain annotation commands
+        shell: bash
+        run: |
+          echo "::notice title=Plain notice::This is a plain notice annotation."
+          echo "::warning title=Plain warning::This is a plain warning annotation."
+          echo "::error title=Plain error::This is a plain error annotation. This does not fail the step by itself."
+
+      - name: README.md file-linked annotation commands
+        shell: bash
+        run: |
+          echo "::notice file=README.md,line=1,endLine=5,title=README notice::This notice annotates README.md lines 1-5."
+          echo "::warning file=README.md,line=1,endLine=5,title=README warning::This warning annotates README.md lines 1-5."
+          echo "::error file=README.md,line=1,endLine=5,title=README error::This error annotates README.md lines 1-5. This does not fail the step by itself."
+
+      - name: README.md column/range annotation commands
+        shell: bash
+        run: |
+          echo "::notice file=README.md,line=1,col=1,endLine=5,endColumn=1,title=README notice with column range::This notice includes column metadata."
+          echo "::warning file=README.md,line=1,col=1,endLine=5,endColumn=1,title=README warning with column range::This warning includes column metadata."
+          echo "::error file=README.md,line=1,col=1,endLine=5,endColumn=1,title=README error with column range::This error includes column metadata."
+
+      - name: Debug command
+        shell: bash
+        run: |
+          echo "::debug::This debug message only appears when ACTIONS_STEP_DEBUG is set to true."
+
+      - name: Grouped log commands
+        shell: bash
+        run: |
+          echo "::group::Grouped workflow-command output"
+          echo "This line appears inside a collapsible log group."
+          echo "::notice title=Grouped notice::This notice was emitted inside a log group."
+          echo "::warning title=Grouped warning::This warning was emitted inside a log group."
+          echo "::error title=Grouped error::This error was emitted inside a log group. This does not fail the step by itself."
+          echo "::endgroup::"
+
+      - name: Masking command
+        shell: bash
+        run: |
+          secret_value="example-secret-value-123"
+          echo "::add-mask::$secret_value"
+          echo "The masked value should be redacted here: $secret_value"
+
+      - name: Stop and resume workflow command processing
+        shell: bash
+        run: |
+          stop_token="$(uuidgen)"
+
+          echo "::warning title=Before stop-commands::This warning should be parsed as an annotation."
+
+          echo "::stop-commands::$stop_token"
+          echo "::warning title=Not parsed::This should appear as plain log text, not as an annotation."
+          echo "::error title=Not parsed::This should also appear as plain log text, not as an annotation."
+          echo "::$stop_token::"
+
+          echo "::notice title=After stop-commands::Workflow command processing has resumed."
+
+      - name: Environment file commands
+        id: env_files
+        shell: bash
+        run: |
+          echo "EXAMPLE_ENV_VAR=available-in-later-steps" >> "$GITHUB_ENV"
+          echo "example_output=available-via-steps-context" >> "$GITHUB_OUTPUT"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Read values written via environment files
+        shell: bash
+        run: |
+          echo "EXAMPLE_ENV_VAR is: $EXAMPLE_ENV_VAR"
+          echo "example_output is: ${{ steps.env_files.outputs.example_output }}"
+
+      - name: Job summary
+        shell: bash
+        run: |
+          {
+            echo "## Annotation command test"
+            echo ""
+            echo "This workflow tested GitHub Actions workflow commands and annotation commands."
+            echo ""
+            echo "| Command | Expected behaviour |"
+            echo "| --- | --- |"
+            echo "| \`::notice\` | Creates a notice annotation and prints to the log |"
+            echo "| \`::warning\` | Creates a warning annotation and prints to the log |"
+            echo "| \`::error\` | Creates an error annotation and prints to the log; does not fail the step unless the process exits non-zero |"
+            echo "| \`file=README.md,line=1,endLine=5\` | Links the annotation to README.md lines 1-5 |"
+            echo "| \`col\` / \`endColumn\` | Adds column metadata to the annotation range |"
+            echo "| \`::debug\` | Prints a debug message only when step debug logging is enabled |"
+            echo "| \`::group\` / \`::endgroup\` | Creates a collapsible log group |"
+            echo "| \`::add-mask\` | Redacts matching values in subsequent log output |"
+            echo "| \`::stop-commands\` | Temporarily disables workflow command parsing |"
+            echo "| \`GITHUB_ENV\` | Makes environment variables available to later steps |"
+            echo "| \`GITHUB_OUTPUT\` | Sets step outputs |"
+            echo "| \`GITHUB_PATH\` | Prepends paths for later steps |"
+            echo "| \`GITHUB_STEP_SUMMARY\` | Writes this job summary |"
+          } >> "$GITHUB_STEP_SUMMARY"
