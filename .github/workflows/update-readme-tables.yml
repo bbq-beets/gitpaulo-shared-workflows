@@ -37,6 +37,7 @@ jobs:
 
           PREFIX="gitpaulo"
           BASE_URL="https://github.com/organizations/${OWNER}/settings/actions"
+          REPO_URL="https://github.com/${OWNER}/${REPO}"
           RUNNERS_FILE=$(mktemp)
           GROUPS_FILE=$(mktemp)
           IMAGES_FILE=$(mktemp)
@@ -164,12 +165,14 @@ jobs:
           R_HEADER="| Name | Type | OS | Status | Labels | Scope |"
           R_SEP="| --- | --- | --- | --- | --- | --- |"
 
-          awk -v header="$R_HEADER" -v sep="$R_SEP" -v rowsfile="$RUNNERS_FILE" -v empty="$RUNNERS_EMPTY" '
+          awk -v header="$R_HEADER" -v sep="$R_SEP" -v rowsfile="$RUNNERS_FILE" -v empty="$RUNNERS_EMPTY" -v repourl="$REPO_URL" '
             /<!-- RUNNERS_TABLE_START -->/ {
               print "<!-- RUNNERS_TABLE_START -->"
               if (empty != "true") { print header; print sep }
               while ((getline line < rowsfile) > 0) print line
               close(rowsfile)
+              print ""
+              print "> [Test Runner Info \u2192](" repourl "/actions/workflows/test-runner-info.yml) | [Test Custom Image \u2192](" repourl "/actions/workflows/test-custom-image.yml)"
               skip=1; next
             }
             /<!-- RUNNERS_TABLE_END -->/ { print; skip=0; next }
@@ -180,12 +183,14 @@ jobs:
           G_HEADER="| Name | Visibility | Default |"
           G_SEP="| --- | --- | --- |"
 
-          awk -v header="$G_HEADER" -v sep="$G_SEP" -v rowsfile="$GROUPS_FILE" -v empty="$GROUPS_EMPTY" '
+          awk -v header="$G_HEADER" -v sep="$G_SEP" -v rowsfile="$GROUPS_FILE" -v empty="$GROUPS_EMPTY" -v repourl="$REPO_URL" '
             /<!-- GROUPS_TABLE_START -->/ {
               print "<!-- GROUPS_TABLE_START -->"
               if (empty != "true") { print header; print sep }
               while ((getline line < rowsfile) > 0) print line
               close(rowsfile)
+              print ""
+              print "> [Test Runner Group \u2192](" repourl "/actions/workflows/test-runner-group.yml)"
               skip=1; next
             }
             /<!-- GROUPS_TABLE_END -->/ { print; skip=0; next }
@@ -196,12 +201,14 @@ jobs:
           I_HEADER="| Runner | Image | Version | Size (GB) | Platform | Status |"
           I_SEP="| --- | --- | --- | --- | --- | --- |"
 
-          awk -v header="$I_HEADER" -v sep="$I_SEP" -v rowsfile="$IMAGES_FILE" -v empty="$IMAGES_EMPTY" '
+          awk -v header="$I_HEADER" -v sep="$I_SEP" -v rowsfile="$IMAGES_FILE" -v empty="$IMAGES_EMPTY" -v repourl="$REPO_URL" '
             /<!-- IMAGES_TABLE_START -->/ {
               print "<!-- IMAGES_TABLE_START -->"
               if (empty != "true") { print header; print sep }
               while ((getline line < rowsfile) > 0) print line
               close(rowsfile)
+              print ""
+              print "> [Test Custom Image \u2192](" repourl "/actions/workflows/test-custom-image.yml)"
               skip=1; next
             }
             /<!-- IMAGES_TABLE_END -->/ { print; skip=0; next }
@@ -212,12 +219,14 @@ jobs:
           N_HEADER="| Name | Compute Service | Network Settings | Created |"
           N_SEP="| --- | --- | --- | --- |"
 
-          awk -v header="$N_HEADER" -v sep="$N_SEP" -v rowsfile="$NETWORKS_FILE" -v empty="$NETWORKS_EMPTY" '
+          awk -v header="$N_HEADER" -v sep="$N_SEP" -v rowsfile="$NETWORKS_FILE" -v empty="$NETWORKS_EMPTY" -v repourl="$REPO_URL" '
             /<!-- NETWORKS_TABLE_START -->/ {
               print "<!-- NETWORKS_TABLE_START -->"
               if (empty != "true") { print header; print sep }
               while ((getline line < rowsfile) > 0) print line
               close(rowsfile)
+              print ""
+              print "> [Test Network Configuration \u2192](" repourl "/actions/workflows/test-network-configuration.yml)"
               skip=1; next
             }
             /<!-- NETWORKS_TABLE_END -->/ { print; skip=0; next }
