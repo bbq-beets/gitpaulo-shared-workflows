@@ -208,7 +208,7 @@ jobs:
               while ((getline line < rowsfile) > 0) print line
               close(rowsfile)
               print ""
-              print "> [Test Custom Image](" repourl "/actions/workflows/test-custom-image.yml)"
+              print "> [Test Custom Image](" repourl "/actions/workflows/test-custom-image.yml) · [Test Generate Custom Image](" repourl "/actions/workflows/test-generate-custom-image.yml)"
               skip=1; next
             }
             /<!-- IMAGES_TABLE_END -->/ { print; skip=0; next }
