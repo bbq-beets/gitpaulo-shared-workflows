@@ -115,7 +115,7 @@ jobs:
             echo "$CUSTOM_IMAGES" | jq -r --arg prefix "$PREFIX" --arg base "$BASE_URL" '
               (if type == "array" then . elif has("images") then .images else [.] end)[] |
               select(.name | contains($prefix)) |
-              "| [\(.name)](\($base)/custom-images/\(.id)/versions) | - | \(.latest_version // "N/A") | \(.total_versions_size // 0) | \(.platform // "N/A") | \(.state // "N/A") |"
+              "| [\(.name)](\($base)/custom-images/\(.id)/versions) | \(.latest_version // "N/A") | \(.total_versions_size // 0) | \(.platform // "N/A") | \(.state // "N/A") |"
             ' >> "$IMAGES_FILE" 2>/dev/null || true
           fi
 
