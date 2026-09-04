@@ -1,12 +1,11 @@
 name: Test Workflow Timeout
 
 on:
-  workflow_dispatch:
+  workflow_call:
     inputs:
       duration_minutes:
-        description: "Duration in minutes"
+        description: "Duration in whole minutes"
         required: true
-        default: "60"
         type: number
       runner_label:
         description: "Runner label"
@@ -17,9 +16,8 @@ permissions: {}
 
 jobs:
   wait:
-    name: Wait for requested duration
+    name: Wait ${{ inputs.duration_minutes }}m on ${{ inputs.runner_label }}
     runs-on: ${{ inputs.runner_label }}
-    # timeout-minutes: 360 is the default 6h but we are not etting minumums
 
     steps:
       - name: Wait
@@ -27,8 +25,6 @@ jobs:
         env:
           DURATION_MINUTES: ${{ inputs.duration_minutes }}
         run: |
-          set -euo pipefail
-
           case "$DURATION_MINUTES" in
             ''|*[!0-9]*)
               echo "::error::duration_minutes must be a whole number"
