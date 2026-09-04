@@ -1,0 +1,57 @@
+name: Test Workflow Timeout
+
+on:
+  workflow_dispatch:
+    inputs:
+      duration_minutes:
+        description: "Duration in minutes"
+        required: true
+        default: "60"
+        type: number
+      runner_label:
+        description: "Runner label"
+        required: true
+        type: string
+
+permissions: {}
+
+jobs:
+  wait:
+    name: Wait for requested duration
+    runs-on: ${{ inputs.runner_label }}
+    # timeout-minutes: 360 is the default 6h but we are not etting minumums
+
+    steps:
+      - name: Wait
+        shell: bash
+        env:
+          DURATION_MINUTES: ${{ inputs.duration_minutes }}
+        run: |
+          set -euo pipefail
+
+          case "$DURATION_MINUTES" in
+            ''|*[!0-9]*)
+              echo "::error::duration_minutes must be a whole number"
+              exit 1
+              ;;
+          esac
+
+          if (( DURATION_MINUTES < 1 || DURATION_MINUTES > 355 )); then
+            echo "::error::duration_minutes must be between 1 and 355"
+            exit 1
+          fi
+
+          echo "Start: $(date -u --iso-8601=seconds)"
+          echo "Duration: ${DURATION_MINUTES} minute(s)"
+
+          deadline=$((SECONDS + DURATION_MINUTES * 60))
+
+          while (( SECONDS < deadline )); do
+            remaining=$((deadline - SECONDS))
+            sleep_for=$((remaining < 60 ? remaining : 60))
+
+            echo "Remaining: ${remaining}s"
+            sleep "$sleep_for"
+          done
+
+          echo "End: $(date -u --iso-8601=seconds)"
