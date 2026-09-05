@@ -32,11 +32,6 @@ jobs:
               ;;
           esac
 
-          if (( DURATION_MINUTES < 1 || DURATION_MINUTES > 355 )); then
-            echo "::error::duration_minutes must be between 1 and 355"
-            exit 1
-          fi
-
           echo "Start: $(date -u --iso-8601=seconds)"
           echo "Duration: ${DURATION_MINUTES} minute(s)"
 
