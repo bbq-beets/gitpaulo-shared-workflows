@@ -18,6 +18,7 @@ jobs:
   wait:
     name: Wait ${{ inputs.duration_minutes }}m on ${{ inputs.runner_label }}
     runs-on: ${{ inputs.runner_label }}
+    timeout-minutes: ${{ inputs.duration_minutes }}
 
     steps:
       - name: Wait
